@@ -1,0 +1,138 @@
+SQL> --Employee Quarterly Sales Report for two Specific Year (2022-2021) with max sales >= 18888, unique customers>= 10
+SQL> CLEAR COLUMNS
+columns cleared
+SQL> CLEAR BREAKS
+breaks cleared
+SQL> CLEAR COMPUTES
+computes cleared
+SQL> TTITLE OFF
+SQL> 
+SQL> SET linesize 120;
+SQL> SET pagesize 35;
+SQL> ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+Session altered.
+
+SQL> 
+SQL> ACCEPT v_dummy FORMAT A4 PROMPT ' '
+ ACCEPT v_startYear DATE FORMAT A4 PROMPT ' Enter the start date:  '
+SP2-0598: "ACCEPT v_startYear DATE FORMAT A4 PROMPT ' Enter the start date:  '" does not match input format "A4"
+ ACCEPT v_endYear DATE FORMAT A4 PROMPT ' Enter the end date:  '
+SP2-0598: "ACCEPT v_endYear DATE FORMAT A4 PROMPT ' Enter the end date:  '" does not match input format "A4"
+ 
+SQL> COLUMN EMPLOYEE_ID FORMAT 999 HEADING "Employee ID";
+SQL> COLUMN EMPLOYEE_NAME FORMAT A20 HEADING "Employee Name";
+SQL> COLUMN cal_year_qtr FORMAT A6 HEADING "YearQuater";
+SQL> COLUMN total_sales FORMAT 999999999.99 HEADING "Total Sales";
+SQL> COLUMN unique_customers FORMAT 99999 HEADING "Unique Cust";
+SQL> COLUMN max_sale FORMAT 999999999.99 HEADING "Max sales";
+SQL> COLUMN quarter_rank FORMAT 99999 HEADING "Quarter Rank";
+SQL> 
+SQL> TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Sales Summary For Each Employee That Max Sale > 18888 ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+SQL> 
+SQL> BREAK ON cal_year_qtr skip 1;
+SQL> CREATE OR REPLACE VIEW sales_summary_emp AS
+  2  WITH employee_sales AS (
+  3    SELECT e.employee_id,
+  4           e.first_name || ' ' || e.last_name AS employee_name,
+  5           d.cal_year_qtr,
+  6           SUM(s.line_total) AS total_sales,
+  7           COUNT(DISTINCT s.customer_key) AS unique_customers,
+  8           MAX(s.line_total) AS max_sale
+  9    FROM sales_fact s
+ 10    JOIN date_dim d ON s.date_key = d.date_key
+ 11    JOIN employees_dim e ON s.employee_key = e.employee_key
+ 12    WHERE d.cal_year BETWEEN '&v_startYear' AND '&v_endYear'
+ 13    GROUP BY ROLLUP((e.employee_id, e.first_name || ' ' || e.last_name, d.cal_year_qtr))
+ 14  ),
+ 15  ranked_employee_sales AS (
+ 16    SELECT employee_id,
+ 17           employee_name,
+ 18           cal_year_qtr,
+ 19           total_sales,
+ 20           unique_customers,
+ 21           max_sale,
+ 22           RANK() OVER (PARTITION BY cal_year_qtr ORDER BY total_sales DESC) AS quarter_rank
+ 23    FROM employee_sales
+ 24  )
+ 25  SELECT *
+ 26  FROM ranked_employee_sales
+ 27  WHERE quarter_rank <= 5
+ 28    AND unique_customers >= 10
+ 29    AND max_sale >= 18888
+ 30  ORDER BY cal_year_qtr, quarter_rank, total_sales DESC;
+Enter value for v_startyear: 2021
+Enter value for v_endyear: 2022
+old  12:   WHERE d.cal_year BETWEEN '&v_startYear' AND '&v_endYear'
+new  12:   WHERE d.cal_year BETWEEN '2021' AND '2022'
+
+View created.
+
+SQL> SELECT * FROM sales_summary_emp;
+
+Date: 27/04/2023                                                                                              Page:    1
+
+                                 Sales Summary For Each Employee That Max Sale > 18888
+    =================================================================================================================
+
+Employee ID Employee Name        YearQu   Total Sales Unique Cust     Max sales Quarter Rank
+----------- -------------------- ------ ------------- ----------- ------------- ------------
+         18 Ollie Bennett        2021Q1    1297808.81         149      35471.96            1
+         75 Imogen Boyd                    1277350.21         146      26603.97            3
+         61 Daisy Ortiz                    1264913.54         147      35471.96            4
+          2 Jude Rivera                    1258430.04         147      26603.97            5
+
+         90 Eliza Black          2021Q2    1262108.66         134      35471.96            1
+         88 Ellie Robertson                1261562.31         141      35471.96            2
+         67 Sienna Simpson                 1226339.91         127      35471.96            3
+         64 Florence Freeman               1215482.44         142      35471.96            4
+         81 Lola Ramos                     1205354.70         142      35471.96            5
+
+         44 Emily Hamilton       2021Q3    1331005.77         174      26603.97            1
+         88 Ellie Robertson                1294925.67         143      35471.96            2
+         52 Sophie Owens                   1267708.11         145      21999.96            3
+         58 Ruby Mcdonald                  1222843.91         152      21999.96            4
+         43 Olivia Ford                    1222808.32         145      35471.96            5
+
+         78 Maya Kennedy         2021Q4    1275064.37         141      35471.96            1
+         95 Eleanor Grant                  1216197.12         138      35471.96            2
+         84 Erin Gordon                    1193875.99         142      26603.97            3
+         68 Matilda Stevens                1166275.67         145      21999.96            4
+        104 Harper Spencer                 1165373.07         152      26603.97            5
+
+         71 Millie Hunter        2022Q1    1138654.51         134      35471.96            1
+         76 Layla Mason                    1124456.92         118      35471.96            3
+         66 Charlotte Webb                 1119371.40         140      26603.97            5
+
+
+Date: 27/04/2023                                                                                              Page:    2
+
+                                 Sales Summary For Each Employee That Max Sale > 18888
+    =================================================================================================================
+
+Employee ID Employee Name        YearQu   Total Sales Unique Cust     Max sales Quarter Rank
+----------- -------------------- ------ ------------- ----------- ------------- ------------
+         89 Jasmine Hunt         2022Q2    1177240.28         131      35471.96            1
+         77 Rosie Morales                  1142021.28         135      35471.96            2
+         44 Emily Hamilton                 1134702.96         140      35471.96            3
+         19 Louis Wood                     1120752.55         134      35471.96            4
+        106 Rose Stephens                  1114863.30         129      21999.96            5
+
+         97 Harriet Ferguson     2022Q3    1313847.28         154      26603.97            1
+         92 Abigail Palmer                 1215894.83         127      26603.97            2
+         14 Elliot Brooks                  1214191.21         147      35471.96            3
+         74 Elsie Henry                    1183740.74         137      26603.97            4
+        100 Thea Hawkins                   1175682.68         138      26603.97            5
+
+         49 Isabella Cole        2022Q4    1281712.07         148      21999.96            1
+         67 Sienna Simpson                 1273622.22         147      21999.96            2
+         17 Frederick Price                1273055.85         144      35471.96            3
+         43 Olivia Ford                    1252308.38         142      26603.97            4
+         58 Ruby Mcdonald                  1250841.50         162      35471.96            5
+
+                                         694945861.90       20132      35471.96            1
+
+
+38 rows selected.
+
+SQL> spool off;

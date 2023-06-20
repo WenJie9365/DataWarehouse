@@ -1,0 +1,57 @@
+--Employee Quarterly Sales Report for two Specific Year (2022-2021) with max sales >= 18888, unique customers>= 10 
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF
+
+SET linesize 120;
+SET pagesize 35;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+ACCEPT v_dummy FORMAT A4 PROMPT ' '
+ACCEPT v_startYear DATE FORMAT A4 PROMPT ' Enter the start date:  '
+ACCEPT v_endYear DATE FORMAT A4 PROMPT ' Enter the end date:  '
+
+COLUMN EMPLOYEE_ID FORMAT 999 HEADING "Employee ID";
+COLUMN EMPLOYEE_NAME FORMAT A20 HEADING "Employee Name";
+COLUMN cal_year_qtr FORMAT A6 HEADING "YearQuater";
+COLUMN total_sales FORMAT 999999999.99 HEADING "Total Sales";
+COLUMN unique_customers FORMAT 99999 HEADING "Unique Cust";
+COLUMN max_sale FORMAT 999999999.99 HEADING "Max sales";
+COLUMN quarter_rank FORMAT 99999 HEADING "Quarter Rank";
+
+TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Sales Summary For Each Employee That Max Sale > 18888 ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+
+BREAK ON cal_year_qtr skip 1;
+CREATE OR REPLACE VIEW sales_summary_emp AS
+WITH employee_sales AS (
+  SELECT e.employee_id,
+         e.first_name || ' ' || e.last_name AS employee_name,
+         d.cal_year_qtr,
+         SUM(s.line_total) AS total_sales,
+         COUNT(DISTINCT s.customer_key) AS unique_customers,
+         MAX(s.line_total) AS max_sale
+  FROM sales_fact s
+  JOIN date_dim d ON s.date_key = d.date_key
+  JOIN employees_dim e ON s.employee_key = e.employee_key
+  WHERE d.cal_year BETWEEN '&v_startYear' AND '&v_endYear'
+  GROUP BY ROLLUP((e.employee_id, e.first_name || ' ' || e.last_name, d.cal_year_qtr))
+),
+ranked_employee_sales AS (
+  SELECT employee_id,
+         employee_name,
+         cal_year_qtr,
+         total_sales,
+         unique_customers,
+         max_sale,
+         RANK() OVER (PARTITION BY cal_year_qtr ORDER BY total_sales DESC) AS quarter_rank
+  FROM employee_sales
+)
+SELECT *
+FROM ranked_employee_sales
+WHERE quarter_rank <= 5
+  AND unique_customers >= 10
+  AND max_sale >= 18888
+ORDER BY cal_year_qtr, quarter_rank, total_sales DESC;
+
+SELECT * FROM sales_summary_emp;

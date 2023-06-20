@@ -1,0 +1,84 @@
+SQL> CLEAR COLUMNS
+columns cleared
+SQL> CLEAR BREAKS
+breaks cleared
+SQL> CLEAR COMPUTES
+computes cleared
+SQL> TTITLE OFF
+SQL> 
+SQL> SET linesize 120;
+SQL> SET pagesize 35;
+SQL> ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+Session altered.
+
+SQL> --After Pivot
+SQL> COLUMN warehouse_name FORMAT A20 HEADING "Warehouse Name";
+SQL> COLUMN CPU_SALES FORMAT 9999999999.99 HEADING "CPU Sales";
+SQL> COLUMN VIDEO_CARD_SALES FORMAT 9999999999.99 HEADING "Video_Card Sales";
+SQL> COLUMN ram FORMAT 9999999999.99 HEADING "RAM Sales";
+SQL> COLUMN MOTHER_BOARD_SALES FORMAT 9999999999.99 HEADING "MotherBoard Sales";
+SQL> COLUMN STORAGE_SALES FORMAT 9999999999.99 HEADING "Storage Sales";
+SQL> 
+SQL> TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Summary Sales Report For Every Warehouse ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+SQL> BREAK ON REPORT SKIP 1;
+SQL> COMPUTE AVG LABEL 'Average: ' OF CPU_SALES AND VIDEO_CARD_SALES AND ram and MOTHER_BOARD_SALES and STORAGE_SALES ON REPORT
+SQL> 
+SQL> CREATE OR REPLACE VIEW warehouse_sales_view AS
+  2  SELECT *
+  3  FROM (
+  4      SELECT
+  5          w.warehouse_name,
+  6          pc.category_name,
+  7          --SUM(oi.quantity) AS total_quantity_sold,
+  8          SUM(sf.line_total) AS total_sales
+  9      FROM
+ 10          inventories i
+ 11          JOIN warehouses w ON i.warehouse_id = w.warehouse_id
+ 12          JOIN products_dim pd ON i.product_id = pd.product_id
+ 13          JOIN product_categories pc ON pd.category_id = pc.category_id
+ 14          JOIN order_items oi ON pd.product_id = oi.product_id
+ 15          JOIN sales_fact sf ON oi.order_id = sf.order_id
+ 16      WHERE
+ 17          pc.category_name IN ('CPU', 'Video Card', 'Mother Board', 'Storage')
+ 18      GROUP BY
+ 19          w.warehouse_name,
+ 20          pc.category_name
+ 21      HAVING
+ 22          SUM(sf.line_total) > 0
+ 23  )
+ 24  PIVOT (
+ 25      --SUM(total_quantity_sold) AS quantity_sold,
+ 26      SUM(total_sales) AS sales
+ 27      FOR category_name IN ('CPU' AS cpu, 'Video Card' AS video_card, 'Mother Board' AS mother_board, 'Storage' AS storage)
+ 28  )
+ 29  ORDER BY
+ 30      warehouse_name;
+
+View created.
+
+SQL> SELECT * FROM warehouse_sales_view;
+
+Date: 27/04/2023                                                                                              Page:    1
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name            CPU Sales Video_Card Sales MotherBoard Sales  Storage Sales
+-------------------- -------------- ---------------- ----------------- --------------
+Beijing               1457808113.80    1308105888.19      937586745.27  2476466431.14
+Bombay                1457808113.80    1308105888.19      484066932.72  1227468272.15
+Mexico City            588464697.86    1308105888.19      453519812.55  1248998158.99
+New Jersey             588464697.86    1308105888.19
+San Francisco          988252964.56    1438445050.82      761209374.98  2631085713.35
+Seattle, Washington    932296292.86    1308105888.19      278845121.09  1227468272.15
+Southlake, Texas        62952876.92    1308105888.19
+Sydney                1513764785.50    1438445050.82     1198042616.70  2737211273.17
+Toronto                588464697.86    1438445050.82      453519812.55  1403617441.20
+                     -------------- ---------------- ----------------- --------------
+Average:               908697471.22    1351552275.73      652398630.84  1850330794.59
+
+
+9 rows selected.
+
+SQL> spool off;

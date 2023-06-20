@@ -1,0 +1,123 @@
+SQL> --Comparing the staff total sales revenue in current quarter of the year with previous quarter of the year with difference percentage
+SQL> CLEAR COLUMNS
+columns cleared
+SQL> CLEAR BREAKS
+breaks cleared
+SQL> CLEAR COMPUTES
+computes cleared
+SQL> TTITLE OFF
+SQL> 
+SQL> SET linesize 120;
+SQL> SET pagesize 35;
+SQL> ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+Session altered.
+
+SQL> 
+SQL> ACCEPT v_dummy FORMAT A4 PROMPT ' '
+ ACCEPT v_currentYear DATE FORMAT A4 PROMPT 'Enter the current year (e.g. 2022): '
+SP2-0598: "ACCEPT v_currentYear DATE FORMAT A4 PROMPT 'Enter the current year (e.g. 2022): '" does not match input format "A4"
+ ACCEPT v_previousYear DATE FORMAT A4 PROMPT 'Enter the previous year (e.g. 2021): '
+SP2-0598: "ACCEPT v_previousYear DATE FORMAT A4 PROMPT 'Enter the previous year (e.g. 2021): '" does not match input format "A4"
+ 
+SQL> COLUMN EMPLOYEE_ID FORMAT 999 HEADING "Employee ID";
+SQL> COLUMN EMPLOYEE_NAME FORMAT A20 HEADING "Employee Name";
+SQL> COLUMN CURRENT_QUARTER_SALES FORMAT 999999999.99 HEADING "Current Q Sales";
+SQL> COLUMN PREVIOUS_QUARTER_SALES FORMAT 999999999.99 HEADING "Previous Q Sales";
+SQL> COLUMN s_perc FORMAT 999.99 HEADING "Difference (%)";
+SQL> COLUMN SALES_DIFFERENCE_RANK FORMAT 99999 HEADING "Difference Rank";
+SQL> COLUMN CURRENT_QUARTER_RANK FORMAT 999 HEADING "Current Rank";
+SQL> COLUMN PREVIOUS_QUARTER_RANK FORMAT 999 HEADING "Previous Rank";
+SQL> COLUMN sales_difference_rank FORMAT 999 HEADING "D Rank";
+SQL> 
+SQL> TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Comparing Employee Sales ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+SQL> 
+SQL> BREAK ON sales_difference_rank skip 1;
+SQL> CREATE OR REPLACE VIEW comparing_emp_sales AS
+  2  WITH current_quarter_sales AS (
+  3    SELECT e.employee_id,
+  4           e.first_name || ' ' || e.last_name AS employee_name,
+  5           SUM(s.line_total) AS current_quarter_sales
+  6    FROM sales_fact s
+  7    JOIN date_dim d ON s.date_key = d.date_key
+  8    JOIN employees_dim e ON s.employee_key = e.employee_key
+  9    WHERE d.cal_quarter = 'Q'||TO_CHAR(SYSDATE, 'Q')
+ 10      AND d.cal_year = '&v_currentYear.'
+ 11    GROUP BY e.employee_id, e.first_name || ' ' || e.last_name
+ 12  ),
+ 13  previous_quarter_sales AS (
+ 14    SELECT e.employee_id,
+ 15           SUM(s.line_total) AS previous_quarter_sales
+ 16    FROM sales_fact s
+ 17    JOIN date_dim d ON s.date_key = d.date_key
+ 18    JOIN employees_dim e ON s.employee_key = e.employee_key
+ 19    WHERE d.cal_quarter = 'Q'||TO_CHAR(ADD_MONTHS(SYSDATE, -3), 'Q')
+ 20      AND d.cal_year = '&v_previousYear.'
+ 21    GROUP BY e.employee_id
+ 22  ),
+ 23  sales_difference AS (
+ 24    SELECT c.employee_id,
+ 25           c.employee_name,
+ 26           c.current_quarter_sales,
+ 27           p.previous_quarter_sales,
+ 28           ROUND(((c.current_quarter_sales - p.previous_quarter_sales) / p.previous_quarter_sales) * 100, 2) AS s_perc,
+ 29           RANK() OVER (ORDER BY ((c.current_quarter_sales - p.previous_quarter_sales) / p.previous_quarter_sales) DESC) AS sales_difference_rank,
+ 30           ROW_NUMBER() OVER (ORDER BY c.current_quarter_sales DESC) AS current_quarter_rank,
+ 31           ROW_NUMBER() OVER (ORDER BY p.previous_quarter_sales DESC) AS previous_quarter_rank
+ 32    FROM current_quarter_sales c
+ 33    JOIN previous_quarter_sales p ON c.employee_id = p.employee_id
+ 34  )
+ 35  SELECT s.employee_id,
+ 36         s.employee_name,
+ 37         s.current_quarter_sales,
+ 38         s.current_quarter_rank,
+ 39         s.previous_quarter_sales,
+ 40         s.previous_quarter_rank,
+ 41         s.s_perc,
+ 42         s.sales_difference_rank
+ 43         --CONCAT(s.sales_difference_percent, '%') AS sales_difference_percent
+ 44  FROM sales_difference s
+ 45  WHERE s.sales_difference_rank <= 10
+ 46  ORDER BY s.sales_difference_rank;
+Enter value for v_currentyear: 2022
+old  10:     AND d.cal_year = '&v_currentYear.'
+new  10:     AND d.cal_year = '2022'
+Enter value for v_previousyear: 2021
+old  20:     AND d.cal_year = '&v_previousYear.'
+new  20:     AND d.cal_year = '2021'
+
+View created.
+
+SQL> select * from comparing_emp_sales;
+
+Date: 27/04/2023                                                                                              Page:    1
+
+                                                Comparing Employee Sales
+    =================================================================================================================
+
+Employee ID Employee Name        Current Q Sales Current Rank Previous Q Sales Previous Rank Difference (%) D Rank
+----------- -------------------- --------------- ------------ ---------------- ------------- -------------- ------
+         77 Rosie Morales             1142021.28            2        849745.51            83          34.40      1
+
+         33 Reggie Simmons            1094315.17            8        882157.36            80          24.05      2
+
+         89 Jasmine Hunt              1177240.28            1        955494.07            67          23.21      3
+
+         44 Emily Hamilton            1134702.96            3        942086.77            73          20.45      4
+
+         42 Amelia Myers              1028363.08           15        868495.84            81          18.41      5
+
+         85 Holly Shaw                1110625.62            7        970212.28            62          14.47      6
+
+         81 Lola Ramos                 893535.10           58        786105.86            86          13.67      7
+
+         13 Albert Watson              931528.92           49        836020.03            84          11.42      8
+
+         93 Georgia Mills             1022242.84           16        949033.91            68           7.71      9
+
+         58 Ruby Mcdonald              990052.59           23        927297.54            76           6.77     10
+
+
+10 rows selected.
+
+SQL> spool off;

@@ -1,0 +1,183 @@
+SQL> --Product categories sales in each warehouses
+SQL> CLEAR COLUMNS
+columns cleared
+SQL> CLEAR BREAKS
+breaks cleared
+SQL> CLEAR COMPUTES
+computes cleared
+SQL> TTITLE OFF
+SQL> --Before Pivot
+SQL> SET linesize 120;
+SQL> SET pagesize 35;
+SQL> ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+Session altered.
+
+SQL> 
+SQL> COLUMN warehouse_name FORMAT A20 HEADING "Warehouse Name";
+SQL> COLUMN CATEGORY_NAME FORMAT A20 HEADING "Category Name";
+SQL> COLUMN TOTAL_QUANTITY_SOLD FORMAT 9999999999 HEADING "Total Quantity Sold";
+SQL> COLUMN TOTAL_SALES FORMAT 9999999999.99 HEADING "Total Sales";
+SQL> COLUMN RANK_BY_TOTAL_SALES FORMAT 9 HEADING "Rank_TSales";
+SQL> 
+SQL> TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Summary Sales Report For Every Warehouse ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+SQL> BREAK ON warehouse_name SKIP PAGE SKIP 1;
+SQL> COMPUTE SUM LABEL 'Total: ' OF TOTAL_QUANTITY_SOLD AND TOTAL_SALES ON warehouse_name
+SQL> CREATE OR REPLACE VIEW sales_report_view AS
+  2  SELECT
+  3      t.warehouse_name,
+  4      t.category_name,
+  5      t.total_quantity_sold,
+  6      t.total_sales,
+  7      RANK() OVER (PARTITION BY t.warehouse_name ORDER BY t.total_sales DESC) AS rank_by_total_sales
+  8  FROM
+  9      (SELECT
+ 10          w.warehouse_name,
+ 11          pc.category_name,
+ 12          SUM(oi.quantity) AS total_quantity_sold,
+ 13          SUM(sf.line_total) AS total_sales
+ 14      FROM
+ 15          inventories i
+ 16          JOIN warehouses w ON i.warehouse_id = w.warehouse_id
+ 17          JOIN products_dim pd ON i.product_id = pd.product_id
+ 18          JOIN product_categories pc ON pd.category_id = pc.category_id
+ 19          JOIN order_items oi ON pd.product_id = oi.product_id
+ 20          JOIN sales_fact sf ON oi.order_id = sf.order_id
+ 21      GROUP BY
+ 22          w.warehouse_name,
+ 23          pc.category_name
+ 24      HAVING
+ 25          SUM(sf.line_total) > 0) t
+ 26  ORDER BY
+ 27      t.warehouse_name,
+ 28      t.total_sales DESC;
+
+View created.
+
+SQL> SELECT * FROM sales_report_view;
+
+Date: 27/04/2023                                                                                              Page:    1
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Beijing              Storage                          2976390  2476466431.14           1
+                     CPU                              1487247  1457808113.80           2
+                     Video Card                       1265741  1308105888.19           3
+                     Mother Board                     1185635   937586745.27           4
+********************                      ------------------- --------------
+Total:                                                6915013  6179967178.40
+
+Date: 27/04/2023                                                                                              Page:    2
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Bombay               CPU                              1487247  1457808113.80           1
+                     Video Card                       1265741  1308105888.19           2
+                     Storage                          1412881  1227468272.15           3
+                     Mother Board                      592630   484066932.72           4
+********************                      ------------------- --------------
+Total:                                                4758499  4477449206.86
+
+Date: 27/04/2023                                                                                              Page:    3
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Mexico City          Video Card                       1265741  1308105888.19           1
+                     Storage                          1563509  1248998158.99           2
+                     CPU                               523640   588464697.86           3
+                     Mother Board                      593005   453519812.55           4
+********************                      ------------------- --------------
+Total:                                                3945895  3599088557.59
+
+Date: 27/04/2023                                                                                              Page:    4
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+New Jersey           Video Card                       1265741  1308105888.19           1
+                     CPU                               523640   588464697.86           2
+********************                      ------------------- --------------
+Total:                                                1789381  1896570586.05
+
+Date: 27/04/2023                                                                                              Page:    5
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+San Francisco        Storage                          3126613  2631085713.35           1
+                     Video Card                       1415142  1438445050.82           2
+                     CPU                              1077973   988252964.56           3
+                     Mother Board                      964868   761209374.98           4
+********************                      ------------------- --------------
+Total:                                                6584596  5818993103.71
+
+Date: 27/04/2023                                                                                              Page:    6
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Seattle, Washington  Video Card                       1265741  1308105888.19           1
+                     Storage                          1412881  1227468272.15           2
+                     CPU                              1040016   932296292.86           3
+                     Mother Board                      334314   278845121.09           4
+********************                      ------------------- --------------
+Total:                                                4052952  3746715574.29
+
+Date: 27/04/2023                                                                                              Page:    7
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Southlake, Texas     Video Card                       1265741  1308105888.19           1
+                     CPU                                76409    62952876.92           2
+********************                      ------------------- --------------
+Total:                                                1342150  1371058765.11
+
+Date: 27/04/2023                                                                                              Page:    8
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Sydney               Storage                          3276396  2737211273.17           1
+                     CPU                              1525204  1513764785.50           2
+                     Video Card                       1415142  1438445050.82           3
+                     Mother Board                     1522208  1198042616.70           4
+********************                      ------------------- --------------
+Total:                                                7738950  6887463726.19
+
+Date: 27/04/2023                                                                                              Page:    9
+
+                                        Summary Sales Report For Every Warehouse
+    =================================================================================================================
+
+Warehouse Name       Category Name        Total Quantity Sold    Total Sales Rank_TSales
+-------------------- -------------------- ------------------- -------------- -----------
+Toronto              Video Card                       1415142  1438445050.82           1
+                     Storage                          1713732  1403617441.20           2
+                     CPU                               523640   588464697.86           3
+                     Mother Board                      593005   453519812.55           4
+********************                      ------------------- --------------
+Total:                                                4245519  3884047002.43
+
+32 rows selected.
+
+SQL> spool off;

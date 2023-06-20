@@ -1,0 +1,75 @@
+--Comparing the staff total sales revenue in current quarter of the year with previous quarter of the year with difference percentage 
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF
+
+SET linesize 120;
+SET pagesize 35;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+ACCEPT v_dummy FORMAT A4 PROMPT ' '
+ACCEPT v_currentYear DATE FORMAT A4 PROMPT 'Enter the current year (e.g. 2022): '
+ACCEPT v_previousYear DATE FORMAT A4 PROMPT 'Enter the previous year (e.g. 2021): '
+
+COLUMN EMPLOYEE_ID FORMAT 999 HEADING "Employee ID";
+COLUMN EMPLOYEE_NAME FORMAT A20 HEADING "Employee Name";
+COLUMN CURRENT_QUARTER_SALES FORMAT 999999999.99 HEADING "Current Q Sales";
+COLUMN PREVIOUS_QUARTER_SALES FORMAT 999999999.99 HEADING "Previous Q Sales";
+COLUMN s_perc FORMAT 999.99 HEADING "Difference (%)";
+COLUMN SALES_DIFFERENCE_RANK FORMAT 99999 HEADING "Difference Rank";
+COLUMN CURRENT_QUARTER_RANK FORMAT 999 HEADING "Current Rank";
+COLUMN PREVIOUS_QUARTER_RANK FORMAT 999 HEADING "Previous Rank";
+COLUMN sales_difference_rank FORMAT 999 HEADING "D Rank";
+
+TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Comparing Employee Sales ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+
+BREAK ON sales_difference_rank skip 1;
+CREATE OR REPLACE VIEW comparing_emp_sales AS
+WITH current_quarter_sales AS (
+  SELECT e.employee_id,
+         e.first_name || ' ' || e.last_name AS employee_name,
+         SUM(s.line_total) AS current_quarter_sales
+  FROM sales_fact s
+  JOIN date_dim d ON s.date_key = d.date_key
+  JOIN employees_dim e ON s.employee_key = e.employee_key
+  WHERE d.cal_quarter = 'Q'||TO_CHAR(SYSDATE, 'Q') 
+    AND d.cal_year = '&v_currentYear.'
+  GROUP BY e.employee_id, e.first_name || ' ' || e.last_name
+),
+previous_quarter_sales AS (
+  SELECT e.employee_id,
+         SUM(s.line_total) AS previous_quarter_sales
+  FROM sales_fact s
+  JOIN date_dim d ON s.date_key = d.date_key
+  JOIN employees_dim e ON s.employee_key = e.employee_key
+  WHERE d.cal_quarter = 'Q'||TO_CHAR(ADD_MONTHS(SYSDATE, -3), 'Q')
+    AND d.cal_year = '&v_previousYear.'
+  GROUP BY e.employee_id
+),
+sales_difference AS (
+  SELECT c.employee_id,
+         c.employee_name,
+         c.current_quarter_sales,
+         p.previous_quarter_sales,
+         ROUND(((c.current_quarter_sales - p.previous_quarter_sales) / p.previous_quarter_sales) * 100, 2) AS s_perc,
+         RANK() OVER (ORDER BY ((c.current_quarter_sales - p.previous_quarter_sales) / p.previous_quarter_sales) DESC) AS sales_difference_rank,
+         ROW_NUMBER() OVER (ORDER BY c.current_quarter_sales DESC) AS current_quarter_rank,
+         ROW_NUMBER() OVER (ORDER BY p.previous_quarter_sales DESC) AS previous_quarter_rank
+  FROM current_quarter_sales c
+  JOIN previous_quarter_sales p ON c.employee_id = p.employee_id
+)
+SELECT s.employee_id,
+       s.employee_name,
+       s.current_quarter_sales,
+       s.current_quarter_rank,
+       s.previous_quarter_sales,
+       s.previous_quarter_rank,
+       s.s_perc,
+       s.sales_difference_rank
+       --CONCAT(s.sales_difference_percent, '%') AS sales_difference_percent
+FROM sales_difference s
+WHERE s.sales_difference_rank <= 10
+ORDER BY s.sales_difference_rank;
+
+select * from comparing_emp_sales;

@@ -1,0 +1,114 @@
+--Product categories sales in each warehouses
+--Before Pivot
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF
+--Before Pivot
+SET linesize 120;
+SET pagesize 35;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+COLUMN warehouse_name FORMAT A20 HEADING "Warehouse Name";
+COLUMN CATEGORY_NAME FORMAT A20 HEADING "Category Name";
+COLUMN TOTAL_QUANTITY_SOLD FORMAT 9999999999 HEADING "Total Quantity Sold";
+COLUMN TOTAL_SALES FORMAT 9999999999.99 HEADING "Total Sales";
+COLUMN RANK_BY_TOTAL_SALES FORMAT 9 HEADING "Rank_TSales";
+
+TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Summary Sales Report For Every Warehouse ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+BREAK ON warehouse_name SKIP PAGE SKIP 1;
+COMPUTE SUM LABEL 'Total: ' OF TOTAL_QUANTITY_SOLD AND TOTAL_SALES ON warehouse_name
+CREATE OR REPLACE VIEW sales_report_view AS
+SELECT 
+    t.warehouse_name, 
+    t.category_name, 
+    t.total_quantity_sold,
+    t.total_sales,
+    RANK() OVER (PARTITION BY t.warehouse_name ORDER BY t.total_sales DESC) AS rank_by_total_sales
+FROM 
+    (SELECT 
+        w.warehouse_name, 
+        pc.category_name, 
+        SUM(oi.quantity) AS total_quantity_sold,
+        SUM(sf.line_total) AS total_sales
+    FROM 
+        inventories i
+        JOIN warehouses w ON i.warehouse_id = w.warehouse_id
+        JOIN product_dim pd ON i.product_id = pd.product_id
+        JOIN product_categories pc ON pd.category_id = pc.category_id
+        JOIN order_items oi ON pd.product_id = oi.product_id
+        JOIN sales_fact sf ON oi.order_id = sf.order_id
+    GROUP BY 
+        w.warehouse_name, 
+        pc.category_name
+    HAVING 
+        SUM(sf.line_total) > 0) t
+ORDER BY 
+    t.warehouse_name, 
+    t.total_sales DESC;
+
+
+--SELECT * FROM sales_report_view;
+
+
+
+
+
+
+
+
+
+
+--After Pivot
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF
+
+SET linesize 120;
+SET pagesize 35;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+--After Pivot
+COLUMN warehouse_name FORMAT A20 HEADING "Warehouse Name";
+COLUMN CPU_SALES FORMAT 9999999999.99 HEADING "CPU Sales";
+COLUMN VIDEO_CARD_SALES FORMAT 9999999999.99 HEADING "Video_Card Sales";
+COLUMN ram FORMAT 9999999999.99 HEADING "RAM Sales";
+COLUMN MOTHER_BOARD_SALES FORMAT 9999999999.99 HEADING "MotherBoard Sales";
+COLUMN STORAGE_SALES FORMAT 9999999999.99 HEADING "Storage Sales";
+
+TTITLE LEFT 'Date: ' _DATE RIGHT 'Page: ' FORMAT 999   SQL.PNO SKIP 2 CENTER 'Summary Sales Report For Every Warehouse ' SKIP 1 CENTER '=================================================================================================================' SKIP 2
+BREAK ON REPORT SKIP 1;
+COMPUTE AVG LABEL 'Average: ' OF CPU_SALES AND VIDEO_CARD_SALES AND ram and MOTHER_BOARD_SALES and STORAGE_SALES ON REPORT
+
+CREATE OR REPLACE VIEW warehouse_sales_view AS
+SELECT *
+FROM (
+    SELECT 
+        w.warehouse_name, 
+        pc.category_name, 
+        --SUM(oi.quantity) AS total_quantity_sold,
+        SUM(sf.line_total) AS total_sales
+    FROM 
+        inventories i
+        JOIN warehouses w ON i.warehouse_id = w.warehouse_id
+        JOIN product_dim pd ON i.product_id = pd.product_id
+        JOIN product_categories pc ON pd.category_id = pc.category_id
+        JOIN order_items oi ON pd.product_id = oi.product_id
+        JOIN sales_fact sf ON oi.order_id = sf.order_id
+    WHERE
+        pc.category_name IN ('CPU', 'Video Card', 'Mother Board', 'Storage')
+    GROUP BY 
+        w.warehouse_name, 
+        pc.category_name
+    HAVING 
+        SUM(sf.line_total) > 0
+)
+PIVOT (
+    --SUM(total_quantity_sold) AS quantity_sold, 
+    SUM(total_sales) AS sales
+    FOR category_name IN ('CPU' AS cpu, 'Video Card' AS video_card, 'Mother Board' AS mother_board, 'Storage' AS storage)
+)
+ORDER BY 
+    warehouse_name;
+
+--SELECT * FROM warehouse_sales_view;
